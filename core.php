@@ -119,7 +119,7 @@ function process_post( $content, $author = NULL )
     else
     {
         # Check URL
-        if (preg_match('/\b(([\w-]+:\/\/?|www[.])[^\s()<>]+(?:\([\w\d]+\)|([^[:punct:]\s]|\/)))/i', $data['content'], $matches))
+        if (preg_match('/\b((https?:\/\/?|www[.])[^\s()<>]+(?:\([\w\d]+\)|([^[:punct:]\s]|\/)))/i', $data['content'], $matches))
         {
             $data['url'] = $matches[1];
             $data['content'] = str_replace($matches[1], '', $data['content']);
@@ -171,10 +171,10 @@ function process_post( $content, $author = NULL )
             $data['image'] = array_key_exists('image', $meta_properties) ? $meta_properties['image'] : NULL;
 
             # Download cover image
-            if ($data['image'] !== NULL)
+            if ($data['image'] !== NULL and is_image_url($data['image']))
             {
                 $type = pathinfo($data['image'], PATHINFO_EXTENSION);
-                $image = file_get_contents($data['image']);
+                $image = file_get_contents($data['image'], FALSE, NULL, 0, 4096*1024); // if the file is over 4MB, drop it
                 $data['image'] = 'data:image/' . $type . ';base64,' . base64_encode($image);
             }
 
@@ -519,4 +519,25 @@ function base_url( $params = array() )
 function xss_safe( $string )
 {
     return htmlentities(html_entity_decode($string));
+}
+
+/**
+ * Check if a URL matches an image.
+ *
+ * @since 1.2
+ *
+ * @param  string $url      The image's URL.
+ * @return bool   $is_image TRUE if the URL matches an image, FALSE otherwise.
+ */
+function is_image_url( $url )
+{
+    if (preg_match('/\b((https?:\/\/?|www[.])[^\s()<>]+(?:\([\w\d]+\)|([^[:punct:]\s]|\/)))/i', $data['content'], $matches))
+    {
+        $imagesize = getimagesize($url);
+        if(@is_array($imagesize))
+        {
+            return in_array($imagesize[2] , array(IMAGETYPE_GIF , IMAGETYPE_JPEG ,IMAGETYPE_PNG , IMAGETYPE_BMP));
+        }
+    }
+    return FALSE;
 }
