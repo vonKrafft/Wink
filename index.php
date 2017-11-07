@@ -7,7 +7,13 @@
  * @package Wink
  */
 
-require_once('config.php'); ?><!doctype html>
+require_once('config.php');
+
+/** Initialization **/
+$wkdb = array();
+$alert = init();
+
+?><!doctype html>
 <html lang="fr">
 <head>
     <meta charset="utf-8">
@@ -21,7 +27,7 @@ require_once('config.php'); ?><!doctype html>
             <a href="<?php echo base_url(); ?>"><h1 class="page-title"><?php echo SITE_TITLE; ?></h1></a>
             <form method="GET" action="<?php echo base_url(); ?>">
                 <?php if (is_logged_user()) : ?><input type="hidden" id="apikey" name="apikey" value="<?php echo xss_safe($_GET['apikey']); ?>"><?php endif; ?>
-                <input type="text" id="s" name="s" placeholder="Search ..." value="<?php echo xss_safe($_GET['s']); ?>">
+                <input type="text" id="s" name="s" placeholder="Search ..." value="<?php echo xss_safe(array_key_exists('s', $_GET) ? $_GET['s'] : NULL); ?>">
             </form>
         </div>
     </header>
@@ -38,6 +44,16 @@ require_once('config.php'); ?><!doctype html>
             <textarea id="content" name="content" placeholder="URL and short description ..."></textarea>
             <footer>
                 <input type="text" name="user" disabled="disabled" value="Logged as <?php echo get_logged_user(); ?>">
+                <input type="submit" value="Post">
+            </footer>
+        </form>
+    </div>
+    <?php else : ?>
+    <div class="post">
+        <form method="POST" action="<?php echo base_url(); ?>">
+            <textarea id="content" name="content" placeholder="URL and short description ..."></textarea>
+            <footer>
+                <input type="password" id="apikey" name="apikey" value="<?php echo get_logged_apikey(); ?>" placeholder="Secret key ?">
                 <input type="submit" value="Post">
             </footer>
         </form>
@@ -170,9 +186,7 @@ require_once('config.php'); ?><!doctype html>
         </div>
         <a class="link" href="<?php echo xss_safe($post->url); ?>" target="_blank">
         <?php if ($post->image !== NULL): ?>
-            <div class="link-image">
-                <img src="<?php echo $post->image; ?>">
-            </div>
+            <div class="link-image" style="background-image: url(<?php echo $post->image; ?>);"></div>
             <div class="link-text">
                 <h3 class="link-title"><?php echo xss_safe(strlen($post->title) > 0 ? $post->title : $post->url); ?></h3>
                 <p class="link-description"><?php echo character_limiter($post->description, 150); ?></p>
@@ -199,7 +213,7 @@ require_once('config.php'); ?><!doctype html>
             <?php
             for ($page=1; $page <= max(1, ceil($total_posts / POSTS_PER_PAGE)); $page++) 
             {
-                echo ($current_page == $page) ? '<li class="active">' : '<li>';
+                echo (intval(array_key_exists('page', $_GET) ? $_GET['page'] : 1) == $page) ? '<li class="active">' : '<li>';
                 echo '<a href="' . base_url(array('page' => $page)) .'">' . $page . '</a></li>';
             }
             ?>

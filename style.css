@@ -15,6 +15,7 @@ body {
     padding: 5px 0;
     line-height: 20px;
     background-color: #fff;
+    z-index: 10;
 }
 .page-heading > .heading {
     width: 600px;
@@ -116,10 +117,19 @@ p {
     height: 100px;
     overflow: hidden;
     float: left;
+    background-size: cover;
+    background-repeat: no-repeat;
+    background-position: center;
+    position: relative;
 }
-.link-image > img {
-    width: auto;
+.link-image::after {
+    display: block;
     height: 100%;
+    width: 1px;
+    background-color: #dfe0e4;
+    position: absolute;
+    content: "";
+    right: 0;
 }
 .link-text {
     width: 75%;
@@ -174,6 +184,19 @@ input[name="user"] {
     background-color: transparent;
     text-transform: uppercase;
     font-size: .8em;
+}
+input[name="apikey"] {
+    border: #e5e6e9 1px solid;
+    text-align: right;
+    color: #90949c;
+    background-color: transparent;
+    outline: none;
+    padding: 2px 5px;
+    line-height: 16px;
+    font-size: 11px;
+}
+input[name="apikey"]::placeholder {
+    color: #b2b7c1;
 }
 input[type="submit"] {
     background-color: #6f5499;

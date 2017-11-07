@@ -23,13 +23,49 @@ function init()
     # Load database
     $wkdb = load_database();
     # Process new post
-    if (array_key_exists('content', $_POST) and is_logged_user())
+    if (strtoupper($_SERVER['REQUEST_METHOD']) === 'POST')
     {
-        $alert = process_post($_POST['content']);
-        # Reload database
-        $wkdb = load_database();
+        # Data
+        $apikey = get_parameter('apikey');
+        $content = get_parameter('content');
+        $author = get_logged_author($apikey, get_parameter('author'));
+        # If the key is valid
+        if ($author !== FALSE)
+        {
+            $alert = process_post($content, $author);
+            # Reload database
+            $wkdb = load_database();
+        }
+        elseif (is_master_key($apikey))
+        {
+            $alert = array(
+                'status'  => 'error',
+                'message' => 'A username must be provided with the master key.',
+            );
+        }
+        else
+        {
+            $alert = array(
+                'status'  => 'error',
+                'message' => 'Invalid secret key!',
+            );
+        }
     }
     return $alert;
+}
+
+/**
+ * Search parameter in POST and GET variables
+ *
+ * @since 1.1
+ *
+ * @param  string $key   The wanted key.
+ * @return mixed  $param The requested parameter.
+ */
+function get_parameter( $key )
+{
+    $params = array_merge($_POST, $_GET);
+    return array_key_exists($key, $params) ? $params[$key] : NULL;
 }
 
 /**
@@ -54,10 +90,11 @@ function load_database()
  *
  * @since 1.0
  *
- * @param  string  $content  The published message.
- * @return mixed[] $alert    An alert message to inform about a failure or a success.
+ * @param  string      $content  The published message.
+ * @param  string|NULL $author   The author (optionnal).
+ * @return mixed[]     $alert    An alert message to inform about a failure or a success.
  */
-function process_post( $content )
+function process_post( $content, $author = NULL )
 {
     $data = array(
         'date'        => date("Y-m-d H:i:s"),
@@ -67,7 +104,7 @@ function process_post( $content )
         'description' => NULL,
         'host'        => NULL,
         'hashtags'    => array(),
-        'author'      => get_logged_user(),
+        'author'      => isset($author) ? $author : get_logged_user(),
         'image'       => NULL,
     );
 
@@ -129,13 +166,9 @@ function process_post( $content )
                     }
                 }
             }
-            foreach ($meta_properties as $key => $value)
-            {
-                if (array_key_exists($key, $data))
-                {
-                    $data[$key] = $value;
-                }
-            }
+            $data['title'] = array_key_exists('title', $meta_properties) ? $meta_properties['title'] : NULL;
+            $data['description'] = array_key_exists('description', $meta_properties) ? $meta_properties['description'] : NULL;
+            $data['image'] = array_key_exists('image', $meta_properties) ? $meta_properties['image'] : NULL;
 
             # Download cover image
             if ($data['image'] !== NULL)
@@ -156,7 +189,13 @@ function process_post( $content )
 
             # Save post
             $filename = strftime('%Y%m%d%H%M%S', strtotime($data['date'])) . '-' . md5($data['url']) . '.json';
-            file_put_contents(DATA_DIR . '/' . $filename, json_encode($data, JSON_PRETTY_PRINT));
+            if (file_put_contents(DATA_DIR . '/' . $filename, json_encode($data, JSON_PRETTY_PRINT)) === FALSE)
+            {
+                return array(
+                    'status'  => 'error',
+                    'message' => 'Unable to save data!',
+                );
+            }
         }
         else
         {
@@ -170,6 +209,42 @@ function process_post( $content )
         'status'  => 'success',
         'message' => 'The link and its description have been saved.',
     );
+}
+
+/**
+ * Get the associated author thanks to a secret key
+ *
+ * @since 1.1
+ *
+ * @global mixed[]      $apikeys  The list of secret keys.
+ * @param  string       $key      The wanted key.
+ * @param  string|FALSE $author   An optionnal author's name if the secret key is a master key.
+ * @return string|FALSE $username The name of the user if he is logged in, FALSE otherwise.
+ */
+function get_logged_author( $key, $author = FALSE )
+{
+    global $apikeys;
+    $author = (is_string($author) and ! empty($author)) ? $author : FALSE;
+    if (array_key_exists($key, $apikeys))
+    {
+        return ($apikeys[$key] !== TRUE) ? $apikeys[$key] : $author;
+    }
+    return FALSE;
+}
+
+/**
+ * Check if the given key is a master key
+ *
+ * @since 1.1
+ *
+ * @global mixed[]      $apikeys  The list of secret keys.
+ * @param  string       $key      The wanted key.
+ * @return string|FALSE $username TRUE if it is a master key, FALSE otherwise.
+ */
+function is_master_key( $key )
+{
+    global $apikeys;
+    return array_key_exists($key, $apikeys) ? ($apikeys[$key] === TRUE) : FALSE;
 }
 
 /**
@@ -189,7 +264,7 @@ function is_logged_user()
  *
  * @since 1.0
  *
- * @global mixed[]      $apikeys
+ * @global mixed[]      $apikeys  The list of secret keys.
  * @return string|FALSE $username The name of the user if he is logged in, FALSE otherwise.
  */
 function get_logged_user()
@@ -198,6 +273,24 @@ function get_logged_user()
     if (array_key_exists('apikey', $_GET))
     {
         return array_key_exists($_GET['apikey'], $apikeys) ? $apikeys[$_GET['apikey']] : FALSE;
+    }
+    return FALSE;
+}
+
+/**
+ * Get the apikey of the logged in user.
+ *
+ * @since 1.1
+ *
+ * @global mixed[]      $apikeys The list of secret keys.
+ * @return string|FALSE $apikey  The secret key of the user if he is logged in, FALSE otherwise.
+ */
+function get_logged_apikey()
+{
+    global $apikeys;
+    if (array_key_exists('apikey', $_POST))
+    {
+        return array_key_exists($_POST['apikey'], $apikeys) ? $_POST['apikey'] : FALSE;
     }
     return FALSE;
 }
@@ -381,6 +474,10 @@ function get_author_list( $month = 0 )
  */
 function character_limiter( $string, $len, $suffix = '...' )
 {
+    if (strlen($string) <= $len)
+    {
+        return $string;
+    }
     return (strpos($string, ' ', $len) === FALSE) ? $string : substr($string, 0, strpos($string, ' ', $len)) . $suffix;
 }
 

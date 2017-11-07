@@ -54,7 +54,3 @@ $apikeys = array(
 
 /** Functions and definitions **/
 include_once('app.php');
-
-/** Initialization **/
-$wkdb = array();
-$alert = init();
